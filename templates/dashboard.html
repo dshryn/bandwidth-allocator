@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Smart Bandwidth Allocator</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .card {
+            border: 1px solid #e0e0e0;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            text-align: left
+        }
+
+        .btn {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #888;
+            cursor: pointer
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Smart Bandwidth Allocator</h1>
+
+    <div class="card">
+        <strong>Discovery</strong>
+        <button class="btn" onclick="discover()">Scan LAN</button>
+        <span id="disc-status"></span>
+    </div>
+
+    <div class="card">
+        <strong>Devices</strong>
+        <table>
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>MAC</th>
+                    <th>Host</th>
+                    <th>Priority</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="devices"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <strong>Live Usage (recent)</strong>
+        <div id="usage-chart"></div>
+    </div>
+
+    <script>
+        async function api(path, method = 'GET', body) {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (body) opts.body = JSON.stringify(body);
+            const r = await fetch('/api' + path, opts);
+            return r.json();
+        }
+
+        async function loadDevices() {
+            const j = await api('/devices');
+            const tb = document.getElementById('devices');
+            tb.innerHTML = '';
+            (j.devices || []).forEach(d => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${d.ip}</td><td>${d.mac || ''}</td><td>${d.hostname || ''}</td>
+      <td>${['', 'High', 'Normal', 'Low'][d.priority] || d.priority}</td>
+      <td>
+        <button onclick="setPriority('${d.ip}',1)">High</button>
+        <button onclick="setPriority('${d.ip}',2)">Normal</button>
+        <button onclick="setPriority('${d.ip}',3)">Low</button>
+      </td>`;
+                tb.appendChild(tr);
+            });
+        }
+
+        async function discover() {
+            document.getElementById('disc-status').innerText = 'Scanning...';
+            await api('/discover', 'POST');
+            document.getElementById('disc-status').innerText = 'Done';
+            await loadDevices();
+        }
+
+        async function setPriority(ip, pr) {
+            await api('/set_priority', 'POST', { ip, priority: pr });
+            await loadDevices();
+        }
+
+        // Basic usage plot (polling)
+        let usageData = {};
+        async function pollUsage() {
+            const j = await api('/usage');
+            // reduce to last value per IP
+            usageData = {};
+            (j.usage || []).slice(0, 100).forEach(u => {
+                usageData[u.ip] = (usageData[u.ip] || 0) + u.bytes_rx + u.bytes_tx;
+            });
+            const ips = Object.keys(usageData);
+            const vals = ips.map(i => usageData[i]);
+            const chart = document.getElementById('usage-chart');
+            Plotly.newPlot(chart, [{ x: ips, y: vals, type: 'bar' }], { margin: { t: 20 } });
+        }
+
+        setInterval(loadDevices, 5000);
+        setInterval(pollUsage, 2000);
+        loadDevices();
+        pollUsage();
+    </script>
+</body>
+
+</html>
