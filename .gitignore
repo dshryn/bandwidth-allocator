@@ -1,0 +1,6 @@
+# sba
+sba/__pycache__
+sba.db
+
+# env
+.venv/
