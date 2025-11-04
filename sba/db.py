@@ -1,3 +1,4 @@
+# sba/db.py
 import sqlite3, time
 DB_PATH = "sba.db"
 
@@ -14,6 +15,10 @@ CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts REAL, level TEXT, message TEXT
 );
+CREATE TABLE IF NOT EXISTS blocked_devices (
+  ip TEXT PRIMARY KEY, reason TEXT, ts REAL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_ip_ts ON usage(ip, ts);
 """
 
 def init_db(path=DB_PATH):
@@ -28,13 +33,13 @@ def upsert_device(ip, mac, hostname, priority=2):
     conn.execute("INSERT INTO devices(ip,mac,hostname,priority,last_seen) VALUES(?,?,?,?,?) "
                  "ON CONFLICT(ip) DO UPDATE SET mac=excluded.mac, hostname=excluded.hostname, "
                  "priority=excluded.priority, last_seen=excluded.last_seen",
-                 (ip,mac,hostname,priority,ts))
+                 (ip, mac, hostname, priority, ts))
     conn.commit(); conn.close()
 
 def insert_usage(ip, rx, tx):
     ts = time.time()
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("INSERT INTO usage(ip,ts,bytes_rx,bytes_tx) VALUES(?,?,?,?)", (ip,ts,rx,tx))
+    conn.execute("INSERT INTO usage(ip,ts,bytes_rx,bytes_tx) VALUES(?,?,?,?)", (ip, ts, rx, tx))
     conn.commit(); conn.close()
 
 def set_priority(ip, pr):
@@ -56,8 +61,64 @@ def recent_usage(limit=200):
     conn.close()
     return rows
 
+def usage_history(ip, limit=200):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.execute("SELECT ts,bytes_rx,bytes_tx FROM usage WHERE ip=? ORDER BY ts DESC LIMIT ?", (ip, limit))
+    rows = [dict(zip([c[0] for c in cur.description], r)) for r in cur.fetchall()]
+    conn.close()
+    return rows[::-1]  # oldest-first
+
 def log_event(level, message):
     ts = time.time()
     conn = sqlite3.connect(DB_PATH)
     conn.execute("INSERT INTO events(ts,level,message) VALUES(?,?,?)", (ts, level, message))
     conn.commit(); conn.close()
+
+def list_events(limit=50):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.execute("SELECT ts,level,message FROM events ORDER BY id DESC LIMIT ?", (limit,))
+    rows = [dict(zip([c[0] for c in cur.description], r)) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+# blocked devices
+def block_device(ip, reason="blocked"):
+    ts = time.time()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("INSERT OR REPLACE INTO blocked_devices(ip,reason,ts) VALUES(?,?,?)", (ip, reason, ts))
+    conn.commit(); conn.close()
+    log_event("INFO", f"Device blocked: {ip} ({reason})")
+
+def unblock_device(ip):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM blocked_devices WHERE ip=?", (ip,))
+    conn.commit(); conn.close()
+    log_event("INFO", f"Device unblocked: {ip}")
+
+def list_blocked():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.execute("SELECT ip,reason,ts FROM blocked_devices")
+    rows = [dict(zip([c[0] for c in cur.description], r)) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+# metrics
+def metrics_summary():
+    conn = sqlite3.connect(DB_PATH)
+    # total devices
+    total = conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
+    # active devices (last_seen within 1 hour)
+    one_hour = time.time() - 3600
+    active = conn.execute("SELECT COUNT(*) FROM devices WHERE last_seen>?",(one_hour,)).fetchone()[0]
+    # avg throughput: average of last N usage samples per device (bytes -> Mbps)
+    avg_bps_row = conn.execute("SELECT AVG(bytes_rx+bytes_tx) FROM usage WHERE ts>?", (time.time()-300,)).fetchone()
+    avg_bps = avg_bps_row[0] or 0
+    # blocked count
+    blocked = conn.execute("SELECT COUNT(*) FROM blocked_devices").fetchone()[0]
+    conn.close()
+    return {
+        "total_devices": total,
+        "active_devices": active,
+        "avg_bytes_per_sample": int(avg_bps),
+        "blocked_devices": blocked
+    }

@@ -1,6 +1,17 @@
-# sba
-sba/__pycache__
-sba.db
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
 
-# env
-.venv/
+# Virtual environments
+venv/
+.env/
+
+# Database and logs
+*.db
+*.sqlite3
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
