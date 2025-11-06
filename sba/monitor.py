@@ -1,10 +1,8 @@
-# sba/monitor.py
 import time, threading, platform
 from collections import defaultdict, deque
-import math 
+import math
 from .db import insert_usage, log_event, list_devices, usage_history, set_priority
 from .shaper import set_limit
-# NOTE: AUTO_THRESHOLDS is correctly imported.
 from .config import AUTO_THRESHOLDS, load_auto_mode
 
 USE_SCAPY = False
@@ -21,7 +19,7 @@ class Monitor:
         self.counts = defaultdict(lambda: {"rx": 0, "tx": 0})
         self._stop = threading.Event()
         self._thread = None
-        self.recent_totals = defaultdict(lambda: deque(maxlen=10)) 
+        self.recent_totals = defaultdict(lambda: deque(maxlen=10))
         self.recent_priorities = defaultdict(lambda: deque(maxlen=3))
 
     def _proc(self, pkt):
@@ -55,14 +53,12 @@ class Monitor:
             insert_usage(ip, c.get("rx", 0), c.get("tx", 0))
             self.recent_totals[ip].append(total)
             self.counts[ip] = {"rx": 0, "tx": 0}
-            
-        # FIX: Synchronization fix: check the current runtime state of AUTO_MODE
+
         from . import config
         if config.AUTO_MODE:
             self._smart_allocator()
 
     def _calculate_stats(self, data):
-        """Calculates mean and standard deviation for a list of numbers."""
         if not data:
             return 0, 0
         avg = sum(data) / len(data)
@@ -75,8 +71,7 @@ class Monitor:
     def _smart_allocator(self):
         try:
             devices = list_devices()
-            
-            # FIX: Ensure thresholds are explicitly cast to integers for reliable comparison
+
             high_threshold = int(AUTO_THRESHOLDS.get("high_threshold", 200000))
             low_threshold = int(AUTO_THRESHOLDS.get("low_threshold", 1000000))
 
@@ -84,18 +79,16 @@ class Monitor:
                 ip = d["ip"]
                 current_pr = d["priority"]
 
-                # FIX: Ignore blocked devices
                 if current_pr == 0:
-                    continue 
+                    continue
 
                 hist_deque = self.recent_totals.get(ip)
                 if not hist_deque:
                     continue
-                
+
                 hist = list(hist_deque)
                 recent = hist[-1]
-                
-                # --- Step 1: Determine new_pr based on General Usage (Default Policy) ---
+
                 if recent < high_threshold:
                     new_pr = 1
                 elif recent > low_threshold:
@@ -103,32 +96,26 @@ class Monitor:
                 else:
                     new_pr = 2
 
-                # --- Step 2: Anomaly Check (Can force a throttle to Low Priority 3) ---
-                if len(hist) >= 5: 
+                if len(hist) >= 5:
                     avg, stdev = self._calculate_stats(hist[:-1])
                     anomaly_threshold = avg + (2 * stdev)
-                    
+
                     if recent > anomaly_threshold and avg > high_threshold:
                         new_pr = 3
                         log_event("ALERT", f"Anomaly detected (2σ spike) {ip} avg={int(avg)} stdev={int(stdev)} recent={recent}")
 
-
-                # --- Step 3: Hysteresis (Prevents rapid upgrades/flipping) ---
-                
                 if new_pr != current_pr:
                     self.recent_priorities[ip].append(new_pr)
-                    
-                    # If we are trying to UPGRADE priority (new_pr is lower number than current_pr):
+
                     if new_pr < current_pr:
                         counts = self.recent_priorities[ip].count(new_pr)
                         if counts < 2 and len(self.recent_priorities[ip]) == 3:
                             new_pr = current_pr
                             log_event("DEBUG", f"Holding priority for {ip} at {current_pr} (Hysteresis)")
-                            
-                # --- Step 4: Apply Final Decision ---
+
                 if new_pr != current_pr:
                     self.recent_priorities[ip].clear()
-                    
+
                     set_priority(ip, new_pr)
                     set_limit(ip, new_pr)
                     log_event("AUTO", f"Smart allocator set {ip} -> {['Blocked','High','Normal','Low'][new_pr]}")
@@ -138,10 +125,10 @@ class Monitor:
     def start(self):
         if self._thread and self._thread.is_alive():
             return
-        
+
         from .config import load_auto_mode
         current_auto_mode = load_auto_mode()
-        
+
         self._stop.clear()
         self._thread = threading.Thread(target=self._sniff_loop, daemon=True)
         self._thread.start()

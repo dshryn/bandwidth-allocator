@@ -1,9 +1,6 @@
-# sba/config.py
-# Global configuration for Smart Bandwidth Allocator
+TC_DRY_RUN = 1  
 
-TC_DRY_RUN = 1  # 1 = dry run (no real shaping), 0 = execute shaping commands
-
-DEFAULT_IFACE = "Ethernet"  # adjust for your machine ("Wi-Fi", "eth0", ...)
+DEFAULT_IFACE = "Ethernet" 
 
 PRIORITY_BANDWIDTH = {
     0: 0,       # blocked -> 0 kbps
@@ -21,12 +18,9 @@ PORT_PRIORITIES = {
 
 AUTO_MODE = True
 
-# thresholds (bytes per monitoring interval) for auto decisions
 AUTO_THRESHOLDS = {
-    # UPGRADE threshold: Usage must be very low to go back to High
-    "high_threshold": 20000,   # < 20,000 bytes -> High (Stable Low Usage)
 
-    # DOWNGRADE threshold: Usage must be consistently high to be throttled
+    "high_threshold": 20000,   # < 20,000 bytes -> High (Stable Low Usage)
     "low_threshold": 500000,   # > 500,000 bytes -> Low (Heavy Usage)
     
     "anomaly_spike_factor": 5

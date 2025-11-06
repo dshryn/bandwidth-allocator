@@ -1,9 +1,8 @@
-# sba/api.py
 import sqlite3
 from flask import Blueprint, jsonify, request
 from .db import init_db, list_devices, recent_usage, set_priority, upsert_device, log_event, list_events, usage_history, block_device, unblock_device, list_blocked, metrics_summary, set_config
 from .shaper import set_limit
-from .config import AUTO_MODE, load_auto_mode
+from .config import load_auto_mode
 
 bp = Blueprint("api", __name__)
 

@@ -1,4 +1,3 @@
-# sba/shaper.py
 import platform
 import subprocess
 from .config import TC_DRY_RUN, PRIORITY_BANDWIDTH, DEFAULT_IFACE, PORT_PRIORITIES
@@ -47,19 +46,14 @@ def remove_shaping_windows(ip: str):
         log_event("INFO", f"Removed Windows QoS policy: {policy_name}")
     return rc, out
 
-# --- Linux Shaping (Bidirectional + Port Awareness) ---
-
 def _clear_linux_shaping(iface, ip, flow_id):
-    # Clear device-specific filters and classes (prio 1)
     _run_cmd(["tc", "filter", "del", "dev", iface, "parent", "1:", "prio", "1", "u32", "match", "ip", "src", ip], dry_run=TC_DRY_RUN)
     _run_cmd(["tc", "class", "del", "dev", iface, "parent", "1:", "classid", f"1:{flow_id}"], dry_run=TC_DRY_RUN)
-    
-    # Clear port-specific filters (prio 0)
+
     for port in PORT_PRIORITIES.keys():
         _run_cmd(["tc", "filter", "del", "dev", iface, "parent", "1:", "prio", "0", "u32", "match", "ip", "src", ip, "match", "ip", "dport", str(port), "0xffff"], dry_run=TC_DRY_RUN)
         _run_cmd(["tc", "filter", "del", "dev", iface, "parent", "1:", "prio", "0", "u32", "match", "ip", "src", ip, "match", "ip", "sport", str(port), "0xffff"], dry_run=TC_DRY_RUN)
-
-    # Simplified Ingress cleanup 
+ 
     _run_cmd(["tc", "filter", "del", "dev", iface, "parent", "ffff:", "prio", "1", "u32", "match", "ip", "dst", ip], dry_run=TC_DRY_RUN) 
     
     log_event("INFO", f"Cleared existing Linux tc shaping for {ip} on {iface}")
@@ -71,23 +65,19 @@ def apply_shaping_linux(iface, ip, kbps, flow_id):
     rate = f"{max(1, kbps)}kbit"
     high_rate = f"{PRIORITY_BANDWIDTH.get(1, 100000)}kbit"
     
-    # --- Egress (Upload) Shaping Setup ---
-    # 1. Setup root qdisc if not present
     _run_cmd(["tc", "qdisc", "add", "dev", iface, "root", "handle", "1:", "htb", "default", "30"], dry_run=TC_DRY_RUN)
     
-    # 2. Add Class for Critical Ports (ID 1:10, uses High Rate)
     _run_cmd(["tc", "class", "add", "dev", iface, "parent", "1:", "classid", "1:10", "htb", "rate", high_rate], dry_run=TC_DRY_RUN)
-    
-    # 3. Add Filters for Critical Ports (Prio 0 - highest priority)
+
     for port, name in PORT_PRIORITIES.items():
-        # Match Egress: SOURCE IP + DESTINATION PORT (Outbound)
+
         _run_cmd([
             "tc", "filter", "add", "dev", iface, "protocol", "ip", "parent", "1:", "prio", "0", "u32",
             "match", "ip", "src", ip,
             "match", "ip", "dport", str(port), "0xffff",
             "flowid", "1:10"
         ])
-        # Match Egress: SOURCE IP + SOURCE PORT (Inbound response on egress)
+
         _run_cmd([
             "tc", "filter", "add", "dev", iface, "protocol", "ip", "parent", "1:", "prio", "0", "u32",
             "match", "ip", "src", ip,
@@ -95,19 +85,15 @@ def apply_shaping_linux(iface, ip, kbps, flow_id):
             "flowid", "1:10"
         ])
 
-    # 4. Add Class for Device's General Traffic (ID 1:flow_id, uses calculated rate)
     _run_cmd(["tc", "class", "add", "dev", iface, "parent", "1:", "classid", f"1:{flow_id}", "htb", "rate", rate])
 
-    # 5. Add Filter for Device's General Traffic (Prio 1 - lower priority, default catch-all)
     _run_cmd([
         "tc", "filter", "add", "dev", iface, "protocol", "ip", "parent", "1:", "prio", "1", "u32",
         "match", "ip", "src", ip, "flowid", f"1:{flow_id}"
     ])
-    
-    # --- Ingress (Download) Setup (Simplified) ---
+
     _run_cmd(["tc", "qdisc", "add", "dev", iface, "handle", "ffff:", "ingress"], dry_run=TC_DRY_RUN)
 
-    # Ingress Filter (Prio 1)
     _run_cmd([
         "tc", "filter", "add", "dev", iface, "protocol", "ip", "parent", "ffff:", "prio", "1", "u32",
         "match", "ip", "dst", ip, "flowid", f"1:{flow_id}" 

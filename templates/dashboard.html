@@ -20,7 +20,7 @@
     .priority-low { color:red; font-weight:bold }
     .priority-blocked { color:darkred; font-weight:bold; background: #fdd } 
     #usage-chart { width:100%; height:360px }
-    .metrics { display:flex; gap:12px; margin-top:8px }
+    .metrics { display:flex; gap:12px; margin-top:8px; flex-wrap: wrap; }
     .metric { background:#fafafa; padding:10px; border-radius:6px; border:1px solid #eee; min-width:140px }
     #events { max-height:220px; overflow-y:auto; font-size:14px }
     .small { font-size:13px; color:#555 }
@@ -43,10 +43,14 @@
     <div class="metrics" id="metricsBox" style="margin-top:12px">
       <div class="metric"><div class="small">Total Devices</div><div id="m_total">0</div></div>
       <div class="metric"><div class="small">Active Devices</div><div id="m_active">0</div></div>
-      <div class="metric"><div class="small">Avg bytes/sample</div><div id="m_avg">0</div></div>
       <div class="metric"><div class="small">Blocked</div><div id="m_blocked">0</div></div>
+      
+      <div class="metric"><div class="small">Throughput (Mbps)</div><div id="m_throughput">0</div></div>
+      <div class="metric"><div class="small">Delay (ms)</div><div id="m_delay">0</div></div>
+      <div class="metric"><div class="small">Packet Loss (%)</div><div id="m_loss">0</div></div>
+      <div class="metric"><div class="small">Congestion (%)</div><div id="m_congestion">0</div></div>
     </div>
-  </div>
+    </div>
 
   <div class="card">
     <strong>Devices</strong>
@@ -163,8 +167,11 @@
     const m = r.metrics || {};
     document.getElementById('m_total').innerText = m.total_devices||0;
     document.getElementById('m_active').innerText = m.active_devices||0;
-    document.getElementById('m_avg').innerText = m.avg_bytes_per_sample||0;
     document.getElementById('m_blocked').innerText = m.blocked_devices||0;
+    document.getElementById('m_throughput').innerText = (m.throughput_mbps||0) + ' Mbps';
+    document.getElementById('m_delay').innerText = (m.delay_ms||0) + ' ms';
+    document.getElementById('m_loss').innerText = (m.packet_loss_percent||0) + ' %';
+    document.getElementById('m_congestion').innerText = (m.congestion_percent||0) + ' %';
   }
 
   async function pollUsage(){
