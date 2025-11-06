@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS blocked_devices (
   ip TEXT PRIMARY KEY, reason TEXT, ts REAL
 );
+CREATE TABLE IF NOT EXISTS config ( 
+  key TEXT PRIMARY KEY, value TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_usage_ip_ts ON usage(ip, ts);
 """
 
@@ -26,6 +29,20 @@ def init_db(path=DB_PATH):
     conn.executescript(SCHEMA)
     conn.commit()
     conn.close()
+
+# --- NEW CONFIG FUNCTIONS ---
+def set_config(key, value):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES(?, ?)", (key, str(value)))
+    conn.commit(); conn.close()
+    
+def get_config(key, default=None):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else default
+# -----------------------------
 
 def upsert_device(ip, mac, hostname, priority=2):
     ts = time.time()
@@ -66,7 +83,7 @@ def usage_history(ip, limit=200):
     cur = conn.execute("SELECT ts,bytes_rx,bytes_tx FROM usage WHERE ip=? ORDER BY ts DESC LIMIT ?", (ip, limit))
     rows = [dict(zip([c[0] for c in cur.description], r)) for r in cur.fetchall()]
     conn.close()
-    return rows[::-1]  # oldest-first
+    return rows[::-1] 
 
 def log_event(level, message):
     ts = time.time()
@@ -81,7 +98,6 @@ def list_events(limit=50):
     conn.close()
     return rows
 
-# blocked devices
 def block_device(ip, reason="blocked"):
     ts = time.time()
     conn = sqlite3.connect(DB_PATH)
@@ -92,7 +108,8 @@ def block_device(ip, reason="blocked"):
 def unblock_device(ip):
     conn = sqlite3.connect(DB_PATH)
     conn.execute("DELETE FROM blocked_devices WHERE ip=?", (ip,))
-    conn.commit(); conn.close()
+    conn.commit();
+    conn.close()
     log_event("INFO", f"Device unblocked: {ip}")
 
 def list_blocked():
@@ -102,18 +119,13 @@ def list_blocked():
     conn.close()
     return rows
 
-# metrics
 def metrics_summary():
     conn = sqlite3.connect(DB_PATH)
-    # total devices
     total = conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
-    # active devices (last_seen within 1 hour)
     one_hour = time.time() - 3600
     active = conn.execute("SELECT COUNT(*) FROM devices WHERE last_seen>?",(one_hour,)).fetchone()[0]
-    # avg throughput: average of last N usage samples per device (bytes -> Mbps)
     avg_bps_row = conn.execute("SELECT AVG(bytes_rx+bytes_tx) FROM usage WHERE ts>?", (time.time()-300,)).fetchone()
     avg_bps = avg_bps_row[0] or 0
-    # blocked count
     blocked = conn.execute("SELECT COUNT(*) FROM blocked_devices").fetchone()[0]
     conn.close()
     return {

@@ -18,6 +18,7 @@
     .priority-high { color:green; font-weight:bold }
     .priority-normal { color:black; font-weight:bold }
     .priority-low { color:red; font-weight:bold }
+    .priority-blocked { color:darkred; font-weight:bold; background: #fdd } 
     #usage-chart { width:100%; height:360px }
     .metrics { display:flex; gap:12px; margin-top:8px }
     .metric { background:#fafafa; padding:10px; border-radius:6px; border:1px solid #eee; min-width:140px }
@@ -65,7 +66,6 @@
     <ul id="events"></ul>
   </div>
 
-  <!-- history modal -->
   <div id="historyModal" class="modal">
     <span class="modal-close" onclick="closeHistory()">✖</span>
     <h3 id="historyTitle">Usage History</h3>
@@ -78,6 +78,9 @@
       const opts = { method, headers: {'Content-Type':'application/json'} };
       if (body) opts.body = JSON.stringify(body);
       const r = await fetch('/api' + path, opts);
+      if (!r.headers.get('content-type')?.includes('application/json')) {
+        throw new Error(`Non-JSON response for ${path}: ${r.status}`);
+      }
       return await r.json();
     } catch (e) {
       console.error('API error', e);
@@ -85,24 +88,30 @@
     }
   }
 
-  // load devices into table
   async function loadDevices(){
     const j = await api('/devices');
     const tb = document.getElementById('devices');
     tb.innerHTML = '';
-    const colors = {1:'priority-high',2:'priority-normal',3:'priority-low',0:'priority-low'};
+    const colors = {0:'priority-blocked', 1:'priority-high', 2:'priority-normal', 3:'priority-low'};
     (j.devices||[]).forEach(d=>{
       const prText = ['', 'High','Normal','Low','Blocked'][d.priority] || d.priority;
       const tr = document.createElement('tr');
+      
+      let actionButtons;
+      if (d.priority === 0) {
+          actionButtons = `<button onclick="unblockDevice('${d.ip}')" style="background:green;color:white;border:none;">Unblock</button>
+                           <button onclick="showHistory('${d.ip}')">History</button>`;
+      } else {
+          actionButtons = `<button onclick="setPriority('${d.ip}',1)">High</button>
+                           <button onclick="setPriority('${d.ip}',2)">Normal</button>
+                           <button onclick="setPriority('${d.ip}',3)">Low</button>
+                           <button onclick="showHistory('${d.ip}')">History</button>
+                           <button onclick="blockDevice('${d.ip}')">Block</button>`;
+      }
+      
       tr.innerHTML = `<td>${d.ip}</td><td>${d.mac||''}</td><td>${d.hostname||''}</td>
         <td class="${colors[d.priority]||''}">${prText}</td>
-        <td>
-          <button onclick="setPriority('${d.ip}',1)">High</button>
-          <button onclick="setPriority('${d.ip}',2)">Normal</button>
-          <button onclick="setPriority('${d.ip}',3)">Low</button>
-          <button onclick="showHistory('${d.ip}')">History</button>
-          <button onclick="blockDevice('${d.ip}')">Block</button>
-        </td>`;
+        <td>${actionButtons}</td>`;
       tb.appendChild(tr);
     });
   }
@@ -129,8 +138,9 @@
     await loadDevices();
     await loadMetrics();
   }
-
+  
   async function unblockDevice(ip){
+    if(!confirm('Unblock device '+ip+'?')) return;
     await api('/unblock','POST',{ip});
     await loadDevices();
     await loadMetrics();
@@ -157,7 +167,6 @@
     document.getElementById('m_blocked').innerText = m.blocked_devices||0;
   }
 
-  // usage chart polling
   async function pollUsage(){
     const j = await api('/usage');
     const usageData = {};
@@ -174,7 +183,6 @@
     });
   }
 
-  // history modal functions
   async function showHistory(ip){
     const j = await api('/history?ip=' + encodeURIComponent(ip));
     const rows = j.history || [];
@@ -186,13 +194,18 @@
   }
   function closeHistory(){ document.getElementById('historyModal').style.display='none'; }
 
-  // auto-mode toggle
   async function toggleAutoMode(on){
     await api('/auto_toggle','POST',{auto:on});
     alert('Smart Auto Mode set to ' + on);
   }
+  
+  async function loadAutoModeState() {
+      const r = await api('/auto_toggle', 'GET'); 
+      if (r.auto !== undefined) {
+          document.getElementById('autoMode').checked = r.auto;
+      }
+  }
 
-  // init
   setInterval(loadDevices, 5000);
   setInterval(pollUsage, 5000);
   setInterval(loadEvents, 5000);
@@ -201,9 +214,7 @@
   pollUsage();
   loadEvents();
   loadMetrics();
-
-  // set initial auto checkbox state from current config (best-effort)
-  document.getElementById('autoMode').checked = true;
+  loadAutoModeState(); 
 </script>
 </body>
 </html>

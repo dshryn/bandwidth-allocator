@@ -6,18 +6,34 @@ TC_DRY_RUN = 1  # 1 = dry run (no real shaping), 0 = execute shaping commands
 DEFAULT_IFACE = "Ethernet"  # adjust for your machine ("Wi-Fi", "eth0", ...)
 
 PRIORITY_BANDWIDTH = {
-    0: 0,        # blocked -> 0 kbps
-    1: 100000,   # High = 100 Mbps
-    2: 20000,    # Normal = 20 Mbps
-    3: 5000      # Low = 5 Mbps
+    0: 0,       # blocked -> 0 kbps
+    1: 100000,  # High = 100 Mbps
+    2: 20000,   # Normal = 20 Mbps
+    3: 5000     # Low = 5 Mbps
 }
 
-# Smart auto-allocation (toggleable)
+PORT_PRIORITIES = {
+    53: "DNS",       # DNS (UDP/TCP)
+    22: "SSH",       # Secure Shell (TCP)
+    123: "NTP",      # Network Time Protocol (UDP)
+    443: "HTTPS",    # Web/Streaming (TCP)
+}
+
 AUTO_MODE = True
 
 # thresholds (bytes per monitoring interval) for auto decisions
 AUTO_THRESHOLDS = {
-    "high_threshold": 200000,   # < this -> High
-    "low_threshold": 1000000,   # > this -> Low
-    "anomaly_spike_factor": 5   # sudden spike factor threshold
+    # UPGRADE threshold: Usage must be very low to go back to High
+    "high_threshold": 20000,   # < 20,000 bytes -> High (Stable Low Usage)
+
+    # DOWNGRADE threshold: Usage must be consistently high to be throttled
+    "low_threshold": 500000,   # > 500,000 bytes -> Low (Heavy Usage)
+    
+    "anomaly_spike_factor": 5
 }
+
+def load_auto_mode():
+    from .db import get_config
+    global AUTO_MODE
+    AUTO_MODE = get_config("auto_mode", "True").lower() == "true"
+    return AUTO_MODE

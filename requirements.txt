@@ -1,4 +1,7 @@
 Flask
-scapy
-SQLAlchemy
+flask-cors
 plotly
+scapy
+numpy
+pandas
+scikit-learn
