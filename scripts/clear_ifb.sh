@@ -1,4 +1,3 @@
-#!/bin/bash
 IFACE=${1:-eth0}
 set -e
 tc filter del dev $IFACE parent ffff: || true

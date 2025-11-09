@@ -1,6 +1,5 @@
-#!/bin/bash
-# Run server on host A (the target machine): iperf3 -s
-# On client (other machine) run test:
+# run server on host (target machine): iperf3 -s
+# on client run test-
 # ./test_iperf.sh <server_ip> <duration_seconds>
 SERVER=${1}
 DURATION=${2:-10}

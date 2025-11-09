@@ -1,33 +1,141 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <title>Smart Bandwidth Allocator</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background:#fafafa; color:#222 }
-    h1 { color:#d32f2f }
-    .card { border:1px solid #ddd; padding:14px; border-radius:8px; margin-bottom:14px; background:#fff }
-    table { width:100%; border-collapse:collapse; margin-top:10px }
-    th { background:#f5f5f5; padding:8px; text-align:left }
-    td { padding:8px; border-bottom:1px solid #eee }
-    button { margin:2px; padding:6px 8px; border-radius:4px; border:1px solid #bbb; background:#fafafa; cursor:pointer }
-    .btn-scan { background:#d32f2f; color:#fff; border:none; padding:8px 12px }
-    .btn-scan:disabled { background:#ccc }
-    .priority-high { color:green; font-weight:bold }
-    .priority-normal { color:black; font-weight:bold }
-    .priority-low { color:red; font-weight:bold }
-    .priority-blocked { color:darkred; font-weight:bold; background: #fdd } 
-    #usage-chart { width:100%; height:360px }
-    .metrics { display:flex; gap:12px; margin-top:8px; flex-wrap: wrap; }
-    .metric { background:#fafafa; padding:10px; border-radius:6px; border:1px solid #eee; min-width:140px }
-    #events { max-height:220px; overflow-y:auto; font-size:14px }
-    .small { font-size:13px; color:#555 }
-    .modal { position:fixed; top:10%; left:10%; width:80%; height:70%; background:#fff; border:1px solid #ccc; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:none; z-index:2000; padding:12px; }
-    .modal-close { float:right; cursor:pointer }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #fafafa;
+      color: #222
+    }
+
+    h1 {
+      color: #d32f2f
+    }
+
+    .card {
+      border: 1px solid #ddd;
+      padding: 14px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      background: #fff
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px
+    }
+
+    th {
+      background: #f5f5f5;
+      padding: 8px;
+      text-align: left
+    }
+
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #eee
+    }
+
+    button {
+      margin: 2px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #bbb;
+      background: #fafafa;
+      cursor: pointer
+    }
+
+    .btn-scan {
+      background: #d32f2f;
+      color: #fff;
+      border: none;
+      padding: 8px 12px
+    }
+
+    .btn-scan:disabled {
+      background: #ccc
+    }
+
+    .priority-high {
+      color: green;
+      font-weight: bold
+    }
+
+    .priority-normal {
+      color: black;
+      font-weight: bold
+    }
+
+    .priority-low {
+      color: red;
+      font-weight: bold
+    }
+
+    .priority-blocked {
+      color: darkred;
+      font-weight: bold;
+      background: #fdd
+    }
+
+    #usage-chart {
+      width: 100%;
+      height: 360px
+    }
+
+    .metrics {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .metric {
+      background: #fafafa;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #eee;
+      min-width: 140px
+    }
+
+    #events {
+      max-height: 220px;
+      overflow-y: auto;
+      font-size: 14px
+    }
+
+    .small {
+      font-size: 13px;
+      color: #555
+    }
+
+    .modal {
+      position: fixed;
+      top: 10%;
+      left: 10%;
+      width: 80%;
+      height: 70%;
+      background: #fff;
+      border: 1px solid #ccc;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: none;
+      z-index: 2000;
+      padding: 12px;
+    }
+
+    .modal-close {
+      float: right;
+      cursor: pointer
+    }
   </style>
 </head>
+
 <body>
   <h1>Smart Bandwidth Allocator</h1>
 
@@ -36,26 +144,55 @@
     <div style="margin-top:8px">
       <button class="btn-scan" id="scanBtn" onclick="discover()">Scan LAN</button>
       <label style="margin-left:12px">
-        <input type="checkbox" id="autoMode" onchange="toggleAutoMode(this.checked)"/> Smart Auto Mode
+        <input type="checkbox" id="autoMode" onchange="toggleAutoMode(this.checked)" /> Smart Auto Mode
       </label>
     </div>
 
     <div class="metrics" id="metricsBox" style="margin-top:12px">
-      <div class="metric"><div class="small">Total Devices</div><div id="m_total">0</div></div>
-      <div class="metric"><div class="small">Active Devices</div><div id="m_active">0</div></div>
-      <div class="metric"><div class="small">Blocked</div><div id="m_blocked">0</div></div>
-      
-      <div class="metric"><div class="small">Throughput (Mbps)</div><div id="m_throughput">0</div></div>
-      <div class="metric"><div class="small">Delay (ms)</div><div id="m_delay">0</div></div>
-      <div class="metric"><div class="small">Packet Loss (%)</div><div id="m_loss">0</div></div>
-      <div class="metric"><div class="small">Congestion (%)</div><div id="m_congestion">0</div></div>
+      <div class="metric">
+        <div class="small">Total Devices</div>
+        <div id="m_total">0</div>
+      </div>
+      <div class="metric">
+        <div class="small">Active Devices</div>
+        <div id="m_active">0</div>
+      </div>
+      <div class="metric">
+        <div class="small">Blocked</div>
+        <div id="m_blocked">0</div>
+      </div>
+
+      <div class="metric">
+        <div class="small">Throughput (Mbps)</div>
+        <div id="m_throughput">0</div>
+      </div>
+      <div class="metric">
+        <div class="small">Delay (ms)</div>
+        <div id="m_delay">0</div>
+      </div>
+      <div class="metric">
+        <div class="small">Packet Loss (%)</div>
+        <div id="m_loss">0</div>
+      </div>
+      <div class="metric">
+        <div class="small">Congestion (%)</div>
+        <div id="m_congestion">0</div>
+      </div>
     </div>
-    </div>
+  </div>
 
   <div class="card">
     <strong>Devices</strong>
     <table>
-      <thead><tr><th>IP</th><th>MAC</th><th>Host</th><th>Priority</th><th>Action</th></tr></thead>
+      <thead>
+        <tr>
+          <th>IP</th>
+          <th>MAC</th>
+          <th>Host</th>
+          <th>Priority</th>
+          <th>Action</th>
+        </tr>
+      </thead>
       <tbody id="devices"></tbody>
     </table>
   </div>
@@ -76,152 +213,153 @@
     <div id="historyChart" style="width:100%;height:420px"></div>
   </div>
 
-<script>
-  async function api(path, method='GET', body) {
-    try {
-      const opts = { method, headers: {'Content-Type':'application/json'} };
-      if (body) opts.body = JSON.stringify(body);
-      const r = await fetch('/api' + path, opts);
-      if (!r.headers.get('content-type')?.includes('application/json')) {
-        throw new Error(`Non-JSON response for ${path}: ${r.status}`);
+  <script>
+    async function api(path, method = 'GET', body) {
+      try {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const r = await fetch('/api' + path, opts);
+        if (!r.headers.get('content-type')?.includes('application/json')) {
+          throw new Error(`Non-JSON response for ${path}: ${r.status}`);
+        }
+        return await r.json();
+      } catch (e) {
+        console.error('API error', e);
+        return {};
       }
-      return await r.json();
-    } catch (e) {
-      console.error('API error', e);
-      return {};
     }
-  }
 
-  async function loadDevices(){
-    const j = await api('/devices');
-    const tb = document.getElementById('devices');
-    tb.innerHTML = '';
-    const colors = {0:'priority-blocked', 1:'priority-high', 2:'priority-normal', 3:'priority-low'};
-    (j.devices||[]).forEach(d=>{
-      const prText = ['', 'High','Normal','Low','Blocked'][d.priority] || d.priority;
-      const tr = document.createElement('tr');
-      
-      let actionButtons;
-      if (d.priority === 0) {
+    async function loadDevices() {
+      const j = await api('/devices');
+      const tb = document.getElementById('devices');
+      tb.innerHTML = '';
+      const colors = { 0: 'priority-blocked', 1: 'priority-high', 2: 'priority-normal', 3: 'priority-low' };
+      (j.devices || []).forEach(d => {
+        const prText = ['', 'High', 'Normal', 'Low', 'Blocked'][d.priority] || d.priority;
+        const tr = document.createElement('tr');
+
+        let actionButtons;
+        if (d.priority === 0) {
           actionButtons = `<button onclick="unblockDevice('${d.ip}')" style="background:green;color:white;border:none;">Unblock</button>
                            <button onclick="showHistory('${d.ip}')">History</button>`;
-      } else {
+        } else {
           actionButtons = `<button onclick="setPriority('${d.ip}',1)">High</button>
                            <button onclick="setPriority('${d.ip}',2)">Normal</button>
                            <button onclick="setPriority('${d.ip}',3)">Low</button>
                            <button onclick="showHistory('${d.ip}')">History</button>
                            <button onclick="blockDevice('${d.ip}')">Block</button>`;
-      }
-      
-      tr.innerHTML = `<td>${d.ip}</td><td>${d.mac||''}</td><td>${d.hostname||''}</td>
-        <td class="${colors[d.priority]||''}">${prText}</td>
+        }
+
+        tr.innerHTML = `<td>${d.ip}</td><td>${d.mac || ''}</td><td>${d.hostname || ''}</td>
+        <td class="${colors[d.priority] || ''}">${prText}</td>
         <td>${actionButtons}</td>`;
-      tb.appendChild(tr);
-    });
-  }
+        tb.appendChild(tr);
+      });
+    }
 
-  async function discover(){
-    const btn = document.getElementById('scanBtn');
-    btn.disabled = true;
-    document.getElementById('scanBtn').innerText = 'Scanning...';
-    await api('/discover','POST');
-    await loadDevices();
-    await loadMetrics();
-    btn.disabled = false;
-    document.getElementById('scanBtn').innerText = 'Scan LAN';
-  }
+    async function discover() {
+      const btn = document.getElementById('scanBtn');
+      btn.disabled = true;
+      document.getElementById('scanBtn').innerText = 'Scanning...';
+      await api('/discover', 'POST');
+      await loadDevices();
+      await loadMetrics();
+      btn.disabled = false;
+      document.getElementById('scanBtn').innerText = 'Scan LAN';
+    }
 
-  async function setPriority(ip, pr){
-    await api('/set_priority','POST',{ip, priority: pr});
-    await loadDevices();
-  }
+    async function setPriority(ip, pr) {
+      await api('/set_priority', 'POST', { ip, priority: pr });
+      await loadDevices();
+    }
 
-  async function blockDevice(ip){
-    if(!confirm('Block device '+ip+'?')) return;
-    await api('/block','POST',{ip});
-    await loadDevices();
-    await loadMetrics();
-  }
-  
-  async function unblockDevice(ip){
-    if(!confirm('Unblock device '+ip+'?')) return;
-    await api('/unblock','POST',{ip});
-    await loadDevices();
-    await loadMetrics();
-  }
+    async function blockDevice(ip) {
+      if (!confirm('Block device ' + ip + '?')) return;
+      await api('/block', 'POST', { ip });
+      await loadDevices();
+      await loadMetrics();
+    }
 
-  async function loadEvents(){
-    const j = await api('/events');
-    const ul = document.getElementById('events');
-    ul.innerHTML = '';
-    (j.events||[]).forEach(e=>{
-      const li = document.createElement('li');
-      const d = new Date(e.ts*1000).toLocaleTimeString();
-      li.textContent = `[${d}] [${e.level}] ${e.message}`;
-      ul.appendChild(li);
-    });
-  }
+    async function unblockDevice(ip) {
+      if (!confirm('Unblock device ' + ip + '?')) return;
+      await api('/unblock', 'POST', { ip });
+      await loadDevices();
+      await loadMetrics();
+    }
 
-  async function loadMetrics(){
-    const r = await api('/metrics');
-    const m = r.metrics || {};
-    document.getElementById('m_total').innerText = m.total_devices||0;
-    document.getElementById('m_active').innerText = m.active_devices||0;
-    document.getElementById('m_blocked').innerText = m.blocked_devices||0;
-    document.getElementById('m_throughput').innerText = (m.throughput_mbps||0) + ' Mbps';
-    document.getElementById('m_delay').innerText = (m.delay_ms||0) + ' ms';
-    document.getElementById('m_loss').innerText = (m.packet_loss_percent||0) + ' %';
-    document.getElementById('m_congestion').innerText = (m.congestion_percent||0) + ' %';
-  }
+    async function loadEvents() {
+      const j = await api('/events');
+      const ul = document.getElementById('events');
+      ul.innerHTML = '';
+      (j.events || []).forEach(e => {
+        const li = document.createElement('li');
+        const d = new Date(e.ts * 1000).toLocaleTimeString();
+        li.textContent = `[${d}] [${e.level}] ${e.message}`;
+        ul.appendChild(li);
+      });
+    }
 
-  async function pollUsage(){
-    const j = await api('/usage');
-    const usageData = {};
-    (j.usage || []).slice(0,300).forEach(u=> {
-      usageData[u.ip] = (usageData[u.ip]||0) + u.bytes_rx + u.bytes_tx;
-    });
-    const ips = Object.keys(usageData);
-    const vals = ips.map(i=>usageData[i]);
-    const chart = document.getElementById('usage-chart');
-    Plotly.newPlot(chart, [{ x: ips, y: vals, type: 'bar', marker: { color: '#d32f2f' } }], {
-      margin:{t:20},
-      xaxis:{title:'IP Address'},
-      yaxis:{title:'Bytes (rx+tx)'}
-    });
-  }
+    async function loadMetrics() {
+      const r = await api('/metrics');
+      const m = r.metrics || {};
+      document.getElementById('m_total').innerText = m.total_devices || 0;
+      document.getElementById('m_active').innerText = m.active_devices || 0;
+      document.getElementById('m_blocked').innerText = m.blocked_devices || 0;
+      document.getElementById('m_throughput').innerText = (m.throughput_mbps || 0) + ' Mbps';
+      document.getElementById('m_delay').innerText = (m.delay_ms || 0) + ' ms';
+      document.getElementById('m_loss').innerText = (m.packet_loss_percent || 0) + ' %';
+      document.getElementById('m_congestion').innerText = (m.congestion_percent || 0) + ' %';
+    }
 
-  async function showHistory(ip){
-    const j = await api('/history?ip=' + encodeURIComponent(ip));
-    const rows = j.history || [];
-    const xs = rows.map(r=>new Date(r.ts*1000));
-    const ys = rows.map(r=>r.bytes_rx + r.bytes_tx);
-    document.getElementById('historyTitle').innerText = 'History: ' + ip;
-    document.getElementById('historyModal').style.display = 'block';
-    Plotly.newPlot('historyChart', [{ x: xs, y: ys, type:'scatter', mode:'lines+markers' }], {margin:{t:30}});
-  }
-  function closeHistory(){ document.getElementById('historyModal').style.display='none'; }
+    async function pollUsage() {
+      const j = await api('/usage');
+      const usageData = {};
+      (j.usage || []).slice(0, 300).forEach(u => {
+        usageData[u.ip] = (usageData[u.ip] || 0) + u.bytes_rx + u.bytes_tx;
+      });
+      const ips = Object.keys(usageData);
+      const vals = ips.map(i => usageData[i]);
+      const chart = document.getElementById('usage-chart');
+      Plotly.newPlot(chart, [{ x: ips, y: vals, type: 'bar', marker: { color: '#d32f2f' } }], {
+        margin: { t: 20 },
+        xaxis: { title: 'IP Address' },
+        yaxis: { title: 'Bytes (rx+tx)' }
+      });
+    }
 
-  async function toggleAutoMode(on){
-    await api('/auto_toggle','POST',{auto:on});
-    alert('Smart Auto Mode set to ' + on);
-  }
-  
-  async function loadAutoModeState() {
-      const r = await api('/auto_toggle', 'GET'); 
+    async function showHistory(ip) {
+      const j = await api('/history?ip=' + encodeURIComponent(ip));
+      const rows = j.history || [];
+      const xs = rows.map(r => new Date(r.ts * 1000));
+      const ys = rows.map(r => r.bytes_rx + r.bytes_tx);
+      document.getElementById('historyTitle').innerText = 'History: ' + ip;
+      document.getElementById('historyModal').style.display = 'block';
+      Plotly.newPlot('historyChart', [{ x: xs, y: ys, type: 'scatter', mode: 'lines+markers' }], { margin: { t: 30 } });
+    }
+    function closeHistory() { document.getElementById('historyModal').style.display = 'none'; }
+
+    async function toggleAutoMode(on) {
+      await api('/auto_toggle', 'POST', { auto: on });
+      alert('Smart Auto Mode set to ' + on);
+    }
+
+    async function loadAutoModeState() {
+      const r = await api('/auto_toggle', 'GET');
       if (r.auto !== undefined) {
-          document.getElementById('autoMode').checked = r.auto;
+        document.getElementById('autoMode').checked = r.auto;
       }
-  }
+    }
 
-  setInterval(loadDevices, 5000);
-  setInterval(pollUsage, 5000);
-  setInterval(loadEvents, 5000);
-  setInterval(loadMetrics, 10000);
-  loadDevices();
-  pollUsage();
-  loadEvents();
-  loadMetrics();
-  loadAutoModeState(); 
-</script>
+    setInterval(loadDevices, 5000);
+    setInterval(pollUsage, 5000);
+    setInterval(loadEvents, 5000);
+    setInterval(loadMetrics, 10000);
+    loadDevices();
+    pollUsage();
+    loadEvents();
+    loadMetrics();
+    loadAutoModeState(); 
+  </script>
 </body>
+
 </html>

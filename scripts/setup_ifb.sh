@@ -1,6 +1,4 @@
-#!/bin/bash
-# scripts/setup_ifb.sh
-# Usage: sudo bash setup_ifb.sh <iface>
+# command to use- sudo bash setup_ifb.sh <iface>
 IFACE=${1:-eth0}
 set -e
 modprobe ifb || true
